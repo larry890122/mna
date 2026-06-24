@@ -1,0 +1,39 @@
+name: SP500 M&A Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * *"
+      timezone: "Asia/Taipei"
+
+jobs:
+  run-monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate monitor output
+        run: python generate_sp500_ma_monitor.py
+
+      - name: Preview email body
+        run: python send_sp500_ma_monitor_email.py --print-only
+
+      - name: Send email
+        env:
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python send_sp500_ma_monitor_email.py
+
+      - name: Upload output artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sp500-ma-monitor-output
+          path: output/
