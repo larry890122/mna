@@ -318,7 +318,27 @@ def parse_target_date(value: str | None) -> dt.date:
         return dt.date.fromisoformat(value)
 
     now_et = to_eastern(dt.datetime.now(UTC))
-    return now_et.date() - dt.timedelta(days=1)
+    return latest_completed_us_market_date(now_et)
+
+
+def previous_weekday(day: dt.date) -> dt.date:
+    current = day
+    while current.weekday() >= 5:
+        current -= dt.timedelta(days=1)
+    return current
+
+
+def latest_completed_us_market_date(now_et: dt.datetime) -> dt.date:
+    today_et = now_et.date()
+
+    if today_et.weekday() >= 5:
+        return previous_weekday(today_et - dt.timedelta(days=1))
+
+    market_close_buffer = dt.time(17, 0)
+    if now_et.time() >= market_close_buffer:
+        return today_et
+
+    return previous_weekday(today_et - dt.timedelta(days=1))
 
 
 def normalize_company_name(value: str) -> str:
@@ -379,6 +399,8 @@ def match_companies(title: str, alias_records: list[dict]) -> list[dict]:
             continue
         if record["symbol"] in seen_symbols:
             continue
+        if should_skip_alias_match(title, record):
+            continue
 
         seen_symbols.add(record["symbol"])
         matched.append(
@@ -392,6 +414,23 @@ def match_companies(title: str, alias_records: list[dict]) -> list[dict]:
 
     matched.sort(key=lambda row: row["security"])
     return matched
+
+
+def should_skip_alias_match(title: str, record: dict) -> bool:
+    if record["symbol"] != "NDAQ":
+        return False
+
+    if record["alias_type"] != "name":
+        return False
+
+    if record["alias"].casefold() != "nasdaq":
+        return False
+
+    # Skip exchange suffixes like "(ADBE:NASDAQ)" that are not references to Nasdaq, Inc.
+    if re.search(r"\([A-Z0-9.\-]+:NASDAQ\)", title):
+        return True
+
+    return False
 
 
 def is_mna_title(title: str) -> bool:

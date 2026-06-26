@@ -1,17 +1,83 @@
-# Bloomberg US Market Wrap Automation
+# Market Wrap Automation
 
-This folder generates a daily US market wrap from Bloomberg Desktop API data on the same machine where Bloomberg Terminal is logged in.
+This folder now supports a Yahoo Finance based market-wrap flow for price data, so the daily run no longer has to depend on Bloomberg just to fetch index and stock moves.
+
+## Recommended Price Source
+
+Use `generate_market_wrap_yahoo.py` when you want GitHub-friendly or non-Bloomberg price data.
+
+```powershell
+python .\generate_market_wrap_yahoo.py --market all --as-of-date 2026-06-24
+```
+
+This writes:
+
+- `output\YYYY-MM-DD_us_market_wrap.{md,json}`
+- `output\YYYY-MM-DD_europe_market_snapshot.{md,json}`
+- and matching `latest_*` files
+
+The Yahoo config lives in `market_wrap_yahoo_config.json`.
+
+## GitHub Daily Email
+
+This repo now includes a GitHub-ready daily flow for the market wrap:
+
+- `run_daily_market_wrap.py`: resolves the target date and generates the latest U.S. plus Europe outputs from Yahoo Finance
+- `send_market_wrap_email.py`: formats the latest market-wrap JSON into a Gmail message and attaches the Markdown outputs
+- `.github/workflows/market-wrap-yahoo.yml`: runs every day at `08:00` Taiwan time by using GitHub Actions cron `0 0 * * *` in UTC
+
+### Local preview
+
+```powershell
+python .\run_daily_market_wrap.py --target-date 2026-06-24
+python .\send_market_wrap_email.py --print-only
+```
+
+### Push to GitHub
+
+1. Create or open your GitHub repository.
+2. Push this folder to the repository default branch.
+3. In GitHub, confirm `.github/workflows/market-wrap-yahoo.yml` exists on the default branch.
+
+### Add GitHub Actions secrets
+
+In GitHub: `Settings` -> `Secrets and variables` -> `Actions`, add:
+
+- `EMAIL_TO`: your Gmail address that should receive the report
+- `GMAIL_SENDER`: the Gmail account that will send the email
+- `GMAIL_APP_PASSWORD`: a Gmail app password for the sender account
+
+### Gmail setup
+
+For the sender Gmail account:
+
+1. Turn on Google 2-Step Verification.
+2. Create an App Password for Mail.
+3. Put that 16-character app password into `GMAIL_APP_PASSWORD`.
+
+### Schedule note
+
+GitHub Actions scheduled workflows use UTC cron.  
+`0 0 * * *` corresponds to `08:00` in Taiwan.
+
+## Legacy Bloomberg Flow
+
+The Bloomberg scripts are still kept in this folder for cases where you explicitly want Bloomberg Desktop API data on the local terminal machine.
 
 ## Files
 
-- `generate_us_market_wrap.ps1`: Pulls Bloomberg data and writes a Chinese market-wrap summary.
-- `market_wrap_config.json`: Editable watchlists for indices, macro assets, sectors, and megacaps.
+- `generate_market_wrap_yahoo.py`: Pulls price data from Yahoo Finance and writes Chinese market-wrap outputs.
+- `market_wrap_yahoo_config.json`: Editable Yahoo symbol lists for U.S. and Europe.
+- `generate_us_market_wrap.ps1`: Legacy Bloomberg Desktop API version for U.S. market wrap.
+- `generate_bloomberg_index_snapshot.ps1`: Legacy Bloomberg Desktop API version for Europe index snapshots.
+- `market_wrap_config.json`: Legacy Bloomberg watchlists for the U.S. version.
+- `europe_market_config.json`: Legacy Bloomberg watchlists for the Europe version.
 - `register_daily_task.ps1`: Registers a Windows scheduled task for daily runs.
 
 ## Run Once
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\generate_us_market_wrap.ps1
+python .\generate_market_wrap_yahoo.py --market all
 ```
 
 Outputs are written to `.\output` as both Markdown and JSON.
@@ -26,9 +92,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\register_daily_task.ps1 -T
 
 ## Important Notes
 
-- Bloomberg Terminal must be logged in on this machine when the task runs.
-- This automation recreates the market wrap from Bloomberg data instead of scraping the Terminal news page.
-- If you want to change the basket of sectors or megacaps, edit `market_wrap_config.json`.
+- If you want GitHub-hosted automation, use the Yahoo flow rather than the Bloomberg flow.
+- If you want to change the basket of sectors, megacaps, or Europe indices, edit `market_wrap_yahoo_config.json`.
+- Bloomberg Terminal is only required for the legacy Bloomberg scripts below.
 
 ## Terminal News Harvest
 
@@ -78,7 +144,7 @@ Run once:
 python .\generate_sp500_ma_monitor.py --target-date 2026-06-23
 ```
 
-If `--target-date` is omitted, the script defaults to the previous U.S. Eastern calendar day.
+If `--target-date` is omitted, the script resolves the latest completed U.S. market date. For example, a Taiwan morning run on 2026-06-26 will target the U.S. market day of 2026-06-25.
 
 Outputs are written to `.\output` as dated and `latest_*.{md,json}` files.
 
@@ -141,8 +207,7 @@ The workflow is set to run every day at `08:00` Taiwan time via GitHub Actions.
 
 ```yaml
 schedule:
-  - cron: "0 8 * * *"
-    timezone: "Asia/Taipei"
+  - cron: "0 0 * * *"
 ```
 
-GitHub notes that scheduled workflows can still run a few minutes late during heavy load, so `08:00` means the target schedule, not a strict guaranteed delivery second.
+GitHub Actions cron runs in UTC, so `0 0 * * *` corresponds to `08:00` in Taiwan. GitHub also notes that scheduled workflows can still run a few minutes late during heavy load.
