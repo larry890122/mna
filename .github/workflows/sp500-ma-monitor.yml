@@ -3,7 +3,7 @@ name: SP500 M&A Monitor
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "58 23 * * *"
 
 jobs:
   run-monitor:
